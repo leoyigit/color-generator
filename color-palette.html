@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leo's Color Palette Extractor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        h1 {
+            margin: 20px 0;
+            font-size: 3rem;
+        }
+
+        .upload-section {
+            margin: 20px 0;
+            text-align: center;
+            max-width: 100%;
+        }
+
+        .drop-box {
+            width: 300px;
+            height: 200px;
+            border: 2px dashed #007bff;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 10px auto;
+            background-color: #f9f9f9;
+            cursor: pointer;
+        }
+
+        .drop-box:hover {
+            background-color: #eef;
+        }
+
+        .drop-box p {
+            font-size: 1rem;
+            color: #007bff;
+        }
+
+        .buttons {
+            margin: 10px 0;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 1rem;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 10px;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .active {
+            background-color: #0056b3;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .color-palette {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .color {
+            width: 100px;
+            height: 100px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            position: relative;
+            cursor: pointer;
+        }
+
+        .hover-tooltip {
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            display: none;
+            white-space: nowrap;
+            z-index: 10;
+        }
+
+        .color:hover .hover-tooltip {
+            display: block;
+        }
+
+        .copy-notification {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #4caf50;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .copy-notification.show {
+            opacity: 1;
+        }
+
+
+
+        .image-preview {
+            margin-top: 20px;
+            max-width: 300px;
+            max-height: 300px;
+            object-fit: contain;
+            display: none;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Mobile-responsive styles */
+        @media (max-width: 600px) {
+            body {
+                padding: 20px;
+            }
+
+            .drop-box {
+                width: 80%;
+                height: 150px;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+            }
+
+            button {
+                padding: 8px 16px;
+                font-size: 0.9rem;
+            }
+
+            .color {
+                width: 80px;
+                height: 80px;
+            }
+
+            .hover-tooltip {
+                bottom: -25px;
+                font-size: 0.7rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Leo's Color Palettes</h1>
+    <div class="upload-section">
+        <div class="drop-box" id="dropBox">
+            <p>Drop an image here or click to upload</p>
+        </div>
+        <input type="file" id="imageInput" accept="image/*" style="display: none;">
+        <img id="imagePreview" class="image-preview" alt="Image Preview">
+
+        <div class="buttons">
+            <button id="rgbButton" class="color-type-button" onclick="setColorType('RGB')">RGB</button>
+            <button id="hexButton" class="color-type-button" onclick="setColorType('HEX')">HEX</button>
+            <button id="cmykButton" class="color-type-button" onclick="setColorType('CMYK')">CMYK</button>
+        </div>
+        <div class="buttons">
+            <button onclick="extractColors()">Extract Colors</button>
+        </div>
+        <div id="copyNotification" class="copy-notification">✔ Copied to clipboard</div>
+
+    </div>
+    <div class="color-palette" id="colorPalette"></div>
+
+    <script>
+        const dropBox = document.getElementById('dropBox');
+        const imageInput = document.getElementById('imageInput');
+        const imagePreview = document.getElementById('imagePreview');
+        const colorPaletteContainer = document.getElementById('colorPalette');
+
+        let colorType = 'RGB'; // Default color type
+
+        dropBox.addEventListener('click', () => imageInput.click());
+
+        dropBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropBox.style.backgroundColor = '#eef';
+        });
+
+        dropBox.addEventListener('dragleave', () => {
+            dropBox.style.backgroundColor = '#f9f9f9';
+        });
+
+        dropBox.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropBox.style.backgroundColor = '#f9f9f9';
+            const file = e.dataTransfer.files[0];
+            handleImage(file);
+        });
+
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            handleImage(file);
+        });
+
+        function handleImage(file) {
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imagePreview.src = e.target.result;
+                imagePreview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function rgbToHex(r, g, b) {
+            return "#" + [r, g, b].map(x => {
+                const hex = x.toString(16);
+                return hex.length === 1 ? "0" + hex : hex;
+            }).join("");
+        }
+
+        function rgbToCmyk(r, g, b) {
+            const c = 1 - r / 255;
+            const m = 1 - g / 255;
+            const y = 1 - b / 255;
+            const k = Math.min(c, m, y);
+            const cmyk = [
+                Math.round(((c - k) / (1 - k)) * 100) || 0,
+                Math.round(((m - k) / (1 - k)) * 100) || 0,
+                Math.round(((y - k) / (1 - k)) * 100) || 0,
+                Math.round(k * 100) || 0
+            ];
+            return `${cmyk[0]}%, ${cmyk[1]}%, ${cmyk[2]}%, ${cmyk[3]}%`;
+        }
+
+        function setColorType(type) {
+            colorType = type;
+
+            // Reset all button styles
+            document.querySelectorAll('.color-type-button').forEach(button => {
+                button.classList.remove('active');
+            });
+
+            // Add 'active' class to the selected button
+            const activeButton = document.getElementById(`${type.toLowerCase()}Button`);
+            activeButton.classList.add('active');
+        }
+
+        async function extractColors() {
+            colorPaletteContainer.innerHTML = '';
+
+            if (!imagePreview.src) {
+                alert('Please upload an image.');
+                return;
+            }
+
+            const img = new Image();
+            img.src = imagePreview.src;
+
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+
+                const width = 200;
+                const height = (img.height / img.width) * 200;
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+
+                const imageData = ctx.getImageData(0, 0, width, height).data;
+                const colorData = [];
+
+                for (let i = 0; i < imageData.length; i += 4) {
+                    colorData.push([imageData[i], imageData[i + 1], imageData[i + 2]]);
+                }
+
+                const k = 8; // Number of colors
+                const kMeans = performKMeans(colorData, k);
+
+                kMeans.forEach(color => {
+                    const div = document.createElement('div');
+                    div.className = 'color';
+                    div.style.backgroundColor = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'hover-tooltip';
+
+                    // Display the color value based on selected color type
+                    let colorValue;
+                    if (colorType === 'RGB') {
+                        colorValue = `RGB: ${color[0]}, ${color[1]}, ${color[2]}`;
+                    } else if (colorType === 'HEX') {
+                        colorValue = `HEX: ${rgbToHex(...color)}`;
+                    } else if (colorType === 'CMYK') {
+                        colorValue = `CMYK: ${rgbToCmyk(...color)}`;
+                    }
+
+                    tooltip.textContent = colorValue;
+                    div.appendChild(tooltip);
+
+                    // Copy color value to clipboard on click
+                    div.addEventListener('click', () => {
+                        const text = colorValue.split(': ')[1];
+                        navigator.clipboard.writeText(text).then(() => {
+                            showCopyNotification();
+                        });
+                    });
+
+                    function showCopyNotification() {
+                        const notification = document.getElementById('copyNotification');
+                        notification.classList.add('show');
+
+                        setTimeout(() => {
+                            notification.classList.remove('show');
+                        }, 2000); // Hide after 2 seconds
+                    }
+
+                    colorPaletteContainer.appendChild(div);
+                });
+            };
+        }
+
+        function performKMeans(data, k) {
+            const centroids = data.slice(0, k);
+            const clusters = Array(k).fill().map(() => []);
+
+            let change = true;
+            while (change) {
+                // Reset clusters
+                for (let i = 0; i < k; i++) {
+                    clusters[i] = [];
+                }
+
+                // Assign data points to nearest centroid
+                data.forEach(point => {
+                    let minDist = Infinity;
+                    let closestCentroid = 0;
+
+                    centroids.forEach((centroid, idx) => {
+                        const dist = Math.sqrt(
+                            Math.pow(centroid[0] - point[0], 2) +
+                            Math.pow(centroid[1] - point[1], 2) +
+                            Math.pow(centroid[2] - point[2], 2)
+                        );
+
+                        if (dist < minDist) {
+                            minDist = dist;
+                            closestCentroid = idx;
+                        }
+                    });
+
+                    clusters[closestCentroid].push(point);
+                });
+
+                // Recalculate centroids
+                const newCentroids = clusters.map(cluster => {
+                    if (cluster.length === 0) return [0, 0, 0];
+
+                    const total = cluster.reduce((sum, point) => {
+                        return [
+                            sum[0] + point[0],
+                            sum[1] + point[1],
+                            sum[2] + point[2],
+                        ];
+                    }, [0, 0, 0]);
+
+                    return total.map(val => Math.round(val / cluster.length));
+                });
+
+                // Check if centroids have changed
+                change = newCentroids.some((centroid, idx) => {
+                    return (
+                        centroid[0] !== centroids[idx][0] ||
+                        centroid[1] !== centroids[idx][1] ||
+                        centroid[2] !== centroids[idx][2]
+                    );
+                });
+
+                // Update centroids
+                centroids.splice(0, k, ...newCentroids);
+            }
+
+            return centroids;
+        }
+        
+    </script>
+</body>
+</html>
